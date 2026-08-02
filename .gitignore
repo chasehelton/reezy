@@ -5,3 +5,6 @@
 *.mp3
 /models
 .DS_Store
+
+# local copyrighted test books
+fixtures/local/
