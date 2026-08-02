@@ -21,6 +21,13 @@ enum Command {
 }
 
 fn main() -> eyre::Result<()> {
+    // Piping into `head` closes stdout early; a CLI should exit quietly rather
+    // than panicking with "failed printing to stdout: Broken pipe".
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     let cli = Cli::parse();
     match cli.command {
         Command::Info { epub } => {

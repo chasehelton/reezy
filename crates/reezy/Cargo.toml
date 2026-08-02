@@ -15,3 +15,4 @@ path = "src/main.rs"
 reezy-core = { path = "../reezy-core" }
 eyre.workspace = true
 clap = { version = "4", features = ["derive"] }
+libc = "0.2.189"
