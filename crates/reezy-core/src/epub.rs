@@ -97,10 +97,10 @@ fn find_cover(epub: &rbook::Epub) -> Option<Vec<u8>> {
 
     // EPUB 3 marks it explicitly.
     for entry in manifest.iter() {
-        if entry.properties().as_str().contains("cover-image") {
-            if let Ok(bytes) = entry.read_bytes() {
-                return Some(bytes);
-            }
+        if entry.properties().as_str().contains("cover-image")
+            && let Ok(bytes) = entry.read_bytes()
+        {
+            return Some(bytes);
         }
     }
 
@@ -111,10 +111,10 @@ fn find_cover(epub: &rbook::Epub) -> Option<Vec<u8>> {
             continue;
         }
         let href = entry.href().as_ref().to_ascii_lowercase();
-        if href.contains("cover") {
-            if let Ok(bytes) = entry.read_bytes() {
-                return Some(bytes);
-            }
+        if href.contains("cover")
+            && let Ok(bytes) = entry.read_bytes()
+        {
+            return Some(bytes);
         }
     }
     None
