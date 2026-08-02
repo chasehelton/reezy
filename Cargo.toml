@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/reezy", "crates/reezy-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Chase Helton"]
+repository = "https://github.com/chasehelton/reezy"
+rust-version = "1.85"
+
+[workspace.dependencies]
+eyre = "0.6"
+sherpa-rs = "0.6.8"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true

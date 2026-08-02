@@ -1,0 +1,17 @@
+[package]
+name = "reezy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Convert EPUB ebooks into chapter-tagged M4B audiobooks with local neural TTS"
+
+[[bin]]
+name = "reezy"
+path = "src/main.rs"
+
+[dependencies]
+reezy-core = { path = "../reezy-core" }
+eyre.workspace = true
+clap = { version = "4", features = ["derive"] }
