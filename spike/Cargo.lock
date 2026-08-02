@@ -646,6 +646,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "reezy-core"
+version = "0.1.0"
+dependencies = [
+ "eyre",
+ "rbook",
+ "regex",
+ "sherpa-rs",
+]
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -881,6 +891,7 @@ name = "spike"
 version = "0.1.0"
 dependencies = [
  "rbook",
+ "reezy-core",
  "sherpa-rs",
 ]
 
