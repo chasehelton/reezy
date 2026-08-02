@@ -1,0 +1,13 @@
+# sherpa-rs ships libsherpa-onnx-c-api.so next to the built binary. Without an
+# rpath the dynamic loader cannot find it, so `./target/release/reezy` fails
+# with "error while loading shared libraries" even though `cargo run` works
+# (cargo injects LD_LIBRARY_PATH itself).
+#
+# $ORIGIN makes the binary look in its own directory first, which keeps
+# `target/release/reezy` runnable in place and keeps a copied binary working as
+# long as the .so travels with it.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN"]
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-args=-Wl,-rpath,$ORIGIN"]
