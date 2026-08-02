@@ -11,6 +11,8 @@ pub struct Book {
     /// BCP-47 language tag. `None` when the EPUB declares something
     /// unusable such as `UND` (see East of Eden).
     pub language: Option<String>,
+    /// Cover image bytes, for embedding in the audiobook.
+    pub cover: Option<Vec<u8>>,
     pub chapters: Vec<Chapter>,
 }
 
@@ -80,8 +82,42 @@ pub fn open(path: impl AsRef<Path>) -> Result<Book> {
         title,
         author,
         language,
+        cover: find_cover(&epub),
         chapters,
     })
+}
+
+/// Locate the cover image.
+///
+/// EPUB has no single canonical way to mark one, so try in order: a manifest
+/// entry with the `cover-image` property (EPUB 3), then any image whose id or
+/// href mentions "cover" (EPUB 2 convention).
+fn find_cover(epub: &rbook::Epub) -> Option<Vec<u8>> {
+    let manifest = epub.manifest();
+
+    // EPUB 3 marks it explicitly.
+    for entry in manifest.iter() {
+        if entry.properties().as_str().contains("cover-image") {
+            if let Ok(bytes) = entry.read_bytes() {
+                return Some(bytes);
+            }
+        }
+    }
+
+    // EPUB 2 convention: an image resource whose id or href says "cover".
+    for entry in manifest.iter() {
+        let kind = entry.kind();
+        if !kind.as_str().starts_with("image/") {
+            continue;
+        }
+        let href = entry.href().as_ref().to_ascii_lowercase();
+        if href.contains("cover") {
+            if let Ok(bytes) = entry.read_bytes() {
+                return Some(bytes);
+            }
+        }
+    }
+    None
 }
 
 /// Map spine href -> TOC label.

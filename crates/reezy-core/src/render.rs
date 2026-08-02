@@ -5,6 +5,7 @@ use crate::epub::{Book, Chapter};
 use crate::normalize;
 use crate::tts::{Pcm, TtsEngine, chunk};
 use eyre::Result;
+use std::sync::Mutex;
 
 /// Silence inserted between chunks within a chapter.
 const CHUNK_GAP_SECS: f32 = 0.25;
@@ -14,6 +15,67 @@ pub fn narratable(book: &Book) -> Vec<&Chapter> {
     book.chapters
         .iter()
         .filter(|c| classify::classify(c) == Kind::Body)
+        .collect()
+}
+
+/// Render every narratable chapter in parallel.
+///
+/// Each worker gets its own engine: sherpa's `create` takes `&mut self`, so a
+/// shared engine would serialize on the mutex and gain nothing. Loading N
+/// engines costs N times the model memory (~350MB each), so the worker count
+/// is capped rather than set to the full core count.
+///
+/// `progress` is called after each chapter completes, with (done, total).
+pub fn render_all<F>(
+    chapters: &[&Chapter],
+    make_engine: impl Fn() -> Result<Box<dyn TtsEngine>> + Sync,
+    workers: usize,
+    progress: F,
+) -> Result<Vec<Pcm>>
+where
+    F: Fn(usize, usize) + Sync,
+{
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let workers = workers.max(1).min(chapters.len().max(1));
+    let next = AtomicUsize::new(0);
+    let done = AtomicUsize::new(0);
+    let total = chapters.len();
+    let results: Vec<Mutex<Option<Pcm>>> = (0..total).map(|_| Mutex::new(None)).collect();
+
+    std::thread::scope(|scope| -> Result<()> {
+        let mut handles = Vec::new();
+        for _ in 0..workers {
+            let (next, done, results, progress) = (&next, &done, &results, &progress);
+            let make_engine = &make_engine;
+            handles.push(scope.spawn(move || -> Result<()> {
+                let engine = make_engine()?;
+                loop {
+                    let i = next.fetch_add(1, Ordering::SeqCst);
+                    if i >= total {
+                        return Ok(());
+                    }
+                    let pcm = render_chapter(engine.as_ref(), chapters[i])?;
+                    *results[i].lock().expect("result slot poisoned") = Some(pcm);
+                    progress(done.fetch_add(1, Ordering::SeqCst) + 1, total);
+                }
+            }));
+        }
+        for h in handles {
+            h.join()
+                .map_err(|_| eyre::eyre!("render worker panicked"))??;
+        }
+        Ok(())
+    })?;
+
+    results
+        .into_iter()
+        .enumerate()
+        .map(|(i, slot)| {
+            slot.into_inner()
+                .expect("result slot poisoned")
+                .ok_or_else(|| eyre::eyre!("chapter {i} was never rendered"))
+        })
         .collect()
 }
 
@@ -71,6 +133,7 @@ mod tests {
             title: "T".into(),
             author: None,
             language: None,
+            cover: None,
             chapters: vec![
                 Chapter {
                     index: 0,
