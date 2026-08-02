@@ -7,6 +7,7 @@
 
 pub mod chunk;
 pub mod kokoro;
+pub mod voice;
 
 use eyre::Result;
 

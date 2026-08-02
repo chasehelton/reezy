@@ -1,6 +1,9 @@
 use clap::{Parser, Subcommand};
 use eyre::Result;
-use reezy_core::{epub, render, tts::kokoro::KokoroEngine};
+use reezy_core::{
+    epub, render,
+    tts::{kokoro::KokoroEngine, voice},
+};
 
 #[derive(Parser)]
 #[command(
@@ -33,7 +36,35 @@ enum Command {
         /// Stop after roughly this many characters
         #[arg(long, default_value_t = 2000)]
         max_chars: usize,
+        #[command(flatten)]
+        voice: VoiceOpts,
     },
+    /// List the available narrator voices
+    Voices,
+}
+
+#[derive(clap::Args)]
+struct VoiceOpts {
+    /// Narrator voice, by name or id (see `reezy voices`)
+    #[arg(short, long, default_value = voice::DEFAULT_VOICE)]
+    voice: String,
+    /// Speaking rate; 1.0 is normal, higher is faster
+    #[arg(long, default_value_t = 1.0)]
+    speed: f32,
+}
+
+impl VoiceOpts {
+    fn engine(&self) -> Result<KokoroEngine> {
+        let id = voice::resolve(&self.voice)?;
+        eyre::ensure!(
+            (0.5..=2.0).contains(&self.speed),
+            "speed {} out of range (0.5 to 2.0)",
+            self.speed
+        );
+        Ok(KokoroEngine::from_default_dir()?
+            .with_speaker(id)
+            .with_speed(self.speed))
+    }
 }
 
 fn main() -> Result<()> {
@@ -51,7 +82,13 @@ fn main() -> Result<()> {
             chapter,
             out,
             max_chars,
-        } => cmd_sample(&epub, chapter, &out, max_chars),
+            voice,
+        } => cmd_sample(&epub, chapter, &out, max_chars, &voice),
+        Command::Voices => {
+            println!("{}", voice::describe_all());
+            println!("\ndefault: {}", voice::DEFAULT_VOICE);
+            Ok(())
+        }
     }
 }
 
@@ -110,7 +147,12 @@ fn cmd_sample(
     chapter: usize,
     out: &std::path::Path,
     max_chars: usize,
+    opts: &VoiceOpts,
 ) -> Result<()> {
+    // Validate cheap inputs before parsing a 600k-word book or loading a
+    // 345MB model, so a typo fails instantly instead of after the banner.
+    let speaker = voice::resolve(&opts.voice)?;
+
     let book = epub::open(path)?;
     let body = render::narratable(&book);
     eyre::ensure!(
@@ -133,9 +175,15 @@ fn cmd_sample(
 
     println!("book    : {}", book.title);
     println!("chapter : {} ({} chars)", ch.title, ch.text.len());
+    println!(
+        "voice   : {} [{}] ({})",
+        opts.voice,
+        speaker,
+        voice::describe(&opts.voice)
+    );
     println!("loading Kokoro...");
 
-    let engine = KokoroEngine::from_default_dir()?;
+    let engine = opts.engine()?;
     let started = std::time::Instant::now();
     let pcm = render::render_chapter(&engine, &ch)?;
     let wall = started.elapsed().as_secs_f32();
